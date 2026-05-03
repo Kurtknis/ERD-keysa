@@ -1,6 +1,6 @@
 import { CheckCheck, PackageCheck, PlusCircle, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { ActionHint, Badge, Card, EmptyState } from '../components/UI';
+import { ActionHint, Badge, Card, DetailModal, EmptyState } from '../components/UI';
 import { useProcurement } from '../context/ProcurementContext';
 import { filterByText, formatDate } from '../utils/formatters';
 
@@ -10,9 +10,12 @@ export default function GoodsReceiptsPage() {
     goodsReceipts,
     createGRRecord,
     markGRReceivedRecord,
+    getPRById,
+    getProductById,
   } = useProcurement();
 
   const [search, setSearch] = useState('');
+  const [selectedItem, setSelectedItem] = useState(null);
 
   const filteredReceipts = useMemo(
     () => filterByText(goodsReceipts, search, (goodsReceipt) => [goodsReceipt.id, goodsReceipt.poId, goodsReceipt.status]),
@@ -20,17 +23,29 @@ export default function GoodsReceiptsPage() {
   );
 
   function handleCreate(poId) {
+    if (!poId) {
+      window.alert('Invalid purchase order.');
+      return;
+    }
+
     try {
       createGRRecord(poId);
     } catch (error) {
+      console.error('Create GR failed:', error);
       window.alert(error.message);
     }
   }
 
   function handleMarkReceived(grId) {
+    if (!grId) {
+      window.alert('Invalid goods receipt.');
+      return;
+    }
+
     try {
       markGRReceivedRecord(grId);
     } catch (error) {
+      console.error('Mark GR received failed:', error);
       window.alert(error.message);
     }
   }
@@ -47,6 +62,9 @@ export default function GoodsReceiptsPage() {
           description="Create GR opens a receiving document for a PO, and Mark Received confirms that the goods physically arrived."
         />
         <div className="table-scroll">
+          {purchaseOrders.length === 0 ? (
+            <p className="form-helper">No purchase orders available. Create a PO first.</p>
+          ) : (
           <table>
             <thead>
               <tr>
@@ -80,6 +98,7 @@ export default function GoodsReceiptsPage() {
               })}
             </tbody>
           </table>
+          )}
         </div>
       </Card>
 
@@ -113,31 +132,58 @@ export default function GoodsReceiptsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredReceipts.map((goodsReceipt) => (
-                  <tr key={goodsReceipt.id}>
-                    <td>{goodsReceipt.id}</td>
-                    <td>{goodsReceipt.poId}</td>
-                    <td>{formatDate(goodsReceipt.createdAt)}</td>
-                    <td>{formatDate(goodsReceipt.receivedAt)}</td>
-                    <td><Badge status={goodsReceipt.status} /></td>
-                    <td>
-                      <button
-                        className="secondary-button small-button"
-                        disabled={goodsReceipt.status === 'Received'}
-                        onClick={() => handleMarkReceived(goodsReceipt.id)}
-                        type="button"
-                      >
-                        <CheckCheck size={14} />
-                        Mark Received
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredReceipts.map((goodsReceipt) => {
+                  const po = purchaseOrders.find((item) => item.id === goodsReceipt.poId);
+                  const pr = getPRById(po?.prId);
+                  const product = getProductById(pr?.productId);
+                  return (
+                    <tr
+                      key={goodsReceipt.id}
+                      className="row-clickable"
+                      onClick={() => setSelectedItem({ gr: goodsReceipt, po, pr, product })}
+                      title="Click to view details"
+                    >
+                      <td>{goodsReceipt.id}</td>
+                      <td>{goodsReceipt.poId}</td>
+                      <td>{formatDate(goodsReceipt.createdAt)}</td>
+                      <td>{formatDate(goodsReceipt.receivedAt)}</td>
+                      <td><Badge status={goodsReceipt.status} /></td>
+                      <td>
+                        <button
+                          className="secondary-button small-button"
+                          disabled={goodsReceipt.status === 'Received'}
+                          onClick={(e) => { e.stopPropagation(); handleMarkReceived(goodsReceipt.id); }}
+                          type="button"
+                        >
+                          <CheckCheck size={14} />
+                          Mark Received
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </Card>
+
+      {selectedItem && (
+        <DetailModal
+          title={`Goods Receipt — ${selectedItem.gr.id}`}
+          onClose={() => setSelectedItem(null)}
+          fields={[
+            { label: 'GR ID', value: selectedItem.gr.id },
+            { label: 'PO Reference', value: selectedItem.gr.poId },
+            { label: 'PR Reference', value: selectedItem.po?.prId ?? '—' },
+            { label: 'Product', value: selectedItem.product?.name ?? '—' },
+            { label: 'Quantity', value: selectedItem.pr?.quantity ?? '—' },
+            { label: 'Status', value: selectedItem.gr.status },
+            { label: 'Created At', value: formatDate(selectedItem.gr.createdAt) },
+            { label: 'Received At', value: formatDate(selectedItem.gr.receivedAt) },
+          ]}
+        />
+      )}
     </div>
   );
 }

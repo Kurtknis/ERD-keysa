@@ -1,6 +1,6 @@
 import { BadgeCheck, ClipboardPlus, Search, Sheet } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { ActionHint, Badge, Card, EmptyState } from '../components/UI';
+import { ActionHint, Badge, Card, DetailModal, EmptyState } from '../components/UI';
 import { useProcurement } from '../context/ProcurementContext';
 import { exportPurchaseRequests } from '../utils/exportExcel';
 import { filterByText, formatCurrency, formatDate } from '../utils/formatters';
@@ -25,6 +25,7 @@ export default function PurchaseRequestsPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [selectedItem, setSelectedItem] = useState(null);
 
   const filteredRequests = useMemo(() => {
     const baseList = filterByText(
@@ -48,10 +49,26 @@ export default function PurchaseRequestsPage() {
   function handleCreate(event) {
     event.preventDefault();
 
+    if (!form.productId) {
+      window.alert('Please select a product.');
+      return;
+    }
+
+    if (!form.requestedById) {
+      window.alert('Please select an employee.');
+      return;
+    }
+
+    if (Number(form.quantity) <= 0) {
+      window.alert('Quantity must be greater than zero.');
+      return;
+    }
+
     try {
       createPRRecord(form);
       setForm(EMPTY_FORM);
     } catch (error) {
+      console.error('Create PR failed:', error);
       window.alert(error.message);
     }
   }
@@ -190,7 +207,12 @@ export default function PurchaseRequestsPage() {
                   const total = (product?.price ?? 0) * purchaseRequest.quantity;
 
                   return (
-                    <tr key={purchaseRequest.id}>
+                    <tr
+                      key={purchaseRequest.id}
+                      className="row-clickable"
+                      onClick={() => setSelectedItem({ pr: purchaseRequest, product, employee, total })}
+                      title="Click to view details"
+                    >
                       <td>{purchaseRequest.id}</td>
                       <td>{product?.name ?? '-'}</td>
                       <td>{purchaseRequest.quantity}</td>
@@ -202,7 +224,7 @@ export default function PurchaseRequestsPage() {
                         <button
                           className="secondary-button small-button"
                           disabled={purchaseRequest.status !== 'Pending'}
-                          onClick={() => handleApprove(purchaseRequest.id)}
+                          onClick={(e) => { e.stopPropagation(); handleApprove(purchaseRequest.id); }}
                           type="button"
                         >
                           <BadgeCheck size={14} />
@@ -220,6 +242,25 @@ export default function PurchaseRequestsPage() {
           </div>
         )}
       </Card>
+
+      {selectedItem && (
+        <DetailModal
+          title={`Purchase Request — ${selectedItem.pr.id}`}
+          onClose={() => setSelectedItem(null)}
+          fields={[
+            { label: 'PR ID', value: selectedItem.pr.id },
+            { label: 'Product', value: selectedItem.product?.name ?? '—' },
+            { label: 'Unit Price', value: formatCurrency(selectedItem.product?.price ?? 0) },
+            { label: 'Quantity', value: selectedItem.pr.quantity },
+            { label: 'Total Amount', value: formatCurrency(selectedItem.total) },
+            { label: 'Requested By', value: selectedItem.employee?.name ?? '—' },
+            { label: 'Role', value: selectedItem.employee?.role ?? '—' },
+            { label: 'Status', value: selectedItem.pr.status },
+            { label: 'Created At', value: formatDate(selectedItem.pr.createdAt) },
+            { label: 'Approved At', value: formatDate(selectedItem.pr.approvedAt) },
+          ]}
+        />
+      )}
     </div>
   );
 }

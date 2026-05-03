@@ -5,9 +5,9 @@ export const initialAppData = {
     { id: 'PRD-003', name: 'Printer Toner', price: 85 },
   ],
   employees: [
-    { id: 'EMP-001', name: 'Maya Chen', role: 'Procurement Officer' },
-    { id: 'EMP-002', name: 'Daniel Brooks', role: 'IT Manager' },
-    { id: 'EMP-003', name: 'Sara Lopez', role: 'Finance Analyst' },
+    { id: 'EMP-001', name: 'Raihan akbar', role: 'Procurement Officer' },
+    { id: 'EMP-002', name: 'dimas abimanyu', role: 'IT Manager' },
+    { id: 'EMP-003', name: 'budi santoso', role: 'Finance Analyst' },
   ],
   purchaseRequests: [
     {

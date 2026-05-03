@@ -1,6 +1,6 @@
 import { PlusCircle, Search, ShoppingCart } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { ActionHint, Badge, Card, EmptyState } from '../components/UI';
+import { ActionHint, Badge, Card, DetailModal, EmptyState } from '../components/UI';
 import { useProcurement } from '../context/ProcurementContext';
 import { filterByText, formatDate } from '../utils/formatters';
 
@@ -11,9 +11,11 @@ export default function PurchaseOrdersPage() {
     createPORecord,
     getProductById,
     getEmployeeById,
+    getPRById,
   } = useProcurement();
 
   const [search, setSearch] = useState('');
+  const [selectedItem, setSelectedItem] = useState(null);
 
   const filteredOrders = useMemo(
     () => filterByText(purchaseOrders, search, (purchaseOrder) => [purchaseOrder.id, purchaseOrder.prId, purchaseOrder.status]),
@@ -21,9 +23,27 @@ export default function PurchaseOrdersPage() {
   );
 
   function handleCreate(prId) {
+    if (!prId) {
+      window.alert('Invalid purchase request.');
+      return;
+    }
+
+    const pr = purchaseRequests.find((item) => item.id === prId);
+
+    if (!pr) {
+      window.alert('Purchase request not found.');
+      return;
+    }
+
+    if (pr.status !== 'Approved') {
+      window.alert('Cannot create a PO until the PR is approved.');
+      return;
+    }
+
     try {
       createPORecord(prId);
     } catch (error) {
+      console.error('Create PO failed:', error);
       window.alert(error.message);
     }
   }
@@ -40,6 +60,9 @@ export default function PurchaseOrdersPage() {
           description="Create PO converts an approved PR into a formal purchase order and blocks duplicate order creation."
         />
         <div className="table-scroll">
+          {purchaseRequests.length === 0 ? (
+            <p className="form-helper">No purchase requests available. Create a PR first.</p>
+          ) : (
           <table>
             <thead>
               <tr>
@@ -77,6 +100,7 @@ export default function PurchaseOrdersPage() {
               })}
             </tbody>
           </table>
+          )}
         </div>
       </Card>
 
@@ -108,19 +132,46 @@ export default function PurchaseOrdersPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredOrders.map((purchaseOrder) => (
-                  <tr key={purchaseOrder.id}>
-                    <td>{purchaseOrder.id}</td>
-                    <td>{purchaseOrder.prId}</td>
-                    <td>{formatDate(purchaseOrder.createdAt)}</td>
-                    <td><Badge status={purchaseOrder.status} /></td>
-                  </tr>
-                ))}
+                {filteredOrders.map((purchaseOrder) => {
+                  const pr = getPRById(purchaseOrder.prId);
+                  const product = getProductById(pr?.productId);
+                  const employee = getEmployeeById(pr?.requestedById);
+                  return (
+                    <tr
+                      key={purchaseOrder.id}
+                      className="row-clickable"
+                      onClick={() => setSelectedItem({ po: purchaseOrder, pr, product, employee })}
+                      title="Click to view details"
+                    >
+                      <td>{purchaseOrder.id}</td>
+                      <td>{purchaseOrder.prId}</td>
+                      <td>{formatDate(purchaseOrder.createdAt)}</td>
+                      <td><Badge status={purchaseOrder.status} /></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </Card>
+
+      {selectedItem && (
+        <DetailModal
+          title={`Purchase Order — ${selectedItem.po.id}`}
+          onClose={() => setSelectedItem(null)}
+          fields={[
+            { label: 'PO ID', value: selectedItem.po.id },
+            { label: 'PR Reference', value: selectedItem.po.prId },
+            { label: 'Product', value: selectedItem.product?.name ?? '—' },
+            { label: 'Quantity', value: selectedItem.pr?.quantity ?? '—' },
+            { label: 'Requested By', value: selectedItem.employee?.name ?? '—' },
+            { label: 'Employee Role', value: selectedItem.employee?.role ?? '—' },
+            { label: 'Created At', value: formatDate(selectedItem.po.createdAt) },
+            { label: 'Status', value: selectedItem.po.status },
+          ]}
+        />
+      )}
     </div>
   );
 }

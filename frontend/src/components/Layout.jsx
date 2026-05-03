@@ -83,7 +83,7 @@ export function Layout({ currentPage, onNavigate, title, subtitle, pendingCount,
       <aside className="sidebar">
         <div className="brand-block">
           <div className="brand-mark">
-            <BarChart3 size={18} />
+            <img src="/logo.png" alt="ERD System Logo" />
           </div>
           <div>
             <h1>ERD System UMN</h1>

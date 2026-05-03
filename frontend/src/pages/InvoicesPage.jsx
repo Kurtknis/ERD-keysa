@@ -1,18 +1,22 @@
 import { BadgeDollarSign, CheckCheck, PlusCircle, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { ActionHint, Badge, Card, EmptyState } from '../components/UI';
+import { ActionHint, Badge, Card, DetailModal, EmptyState } from '../components/UI';
 import { useProcurement } from '../context/ProcurementContext';
 import { filterByText, formatCurrency, formatDate } from '../utils/formatters';
 
 export default function InvoicesPage() {
   const {
     purchaseOrders,
+    goodsReceipts,
     invoices,
     createInvoiceRecord,
     markInvoicePaidRecord,
+    getPRById,
+    getProductById,
   } = useProcurement();
 
   const [search, setSearch] = useState('');
+  const [selectedItem, setSelectedItem] = useState(null);
 
   const filteredInvoices = useMemo(
     () =>
@@ -27,17 +31,41 @@ export default function InvoicesPage() {
   );
 
   function handleCreate(poId) {
+    if (!poId) {
+      window.alert('Invalid purchase order.');
+      return;
+    }
+
+    const gr = goodsReceipts.find((item) => item.poId === poId);
+
+    if (!gr) {
+      window.alert('Cannot create an invoice until a goods receipt exists for this PO.');
+      return;
+    }
+
+    if (gr.status !== 'Received') {
+      window.alert('Cannot create an invoice until the goods receipt is marked as received.');
+      return;
+    }
+
     try {
       createInvoiceRecord(poId);
     } catch (error) {
+      console.error('Create invoice failed:', error);
       window.alert(error.message);
     }
   }
 
   function handleMarkPaid(invoiceId) {
+    if (!invoiceId) {
+      window.alert('Invalid invoice.');
+      return;
+    }
+
     try {
       markInvoicePaidRecord(invoiceId);
     } catch (error) {
+      console.error('Mark invoice paid failed:', error);
       window.alert(error.message);
     }
   }
@@ -54,6 +82,9 @@ export default function InvoicesPage() {
           description="Create Invoice is only valid after a linked PR exists, a PO exists, and the goods receipt is marked as Received."
         />
         <div className="table-scroll">
+          {purchaseOrders.length === 0 ? (
+            <p className="form-helper">No purchase orders available. Create a PO first.</p>
+          ) : (
           <table>
             <thead>
               <tr>
@@ -87,6 +118,7 @@ export default function InvoicesPage() {
               })}
             </tbody>
           </table>
+          )}
         </div>
       </Card>
 
@@ -122,33 +154,61 @@ export default function InvoicesPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredInvoices.map((invoice) => (
-                  <tr key={invoice.id}>
-                    <td>{invoice.id}</td>
-                    <td>{invoice.poId}</td>
-                    <td>{invoice.prId}</td>
-                    <td>{invoice.grId}</td>
-                    <td>{formatCurrency(invoice.amount)}</td>
-                    <td>{formatDate(invoice.createdAt)}</td>
-                    <td><Badge status={invoice.status} /></td>
-                    <td>
-                      <button
-                        className="secondary-button small-button"
-                        disabled={invoice.status === 'Paid'}
-                        onClick={() => handleMarkPaid(invoice.id)}
-                        type="button"
-                      >
-                        <CheckCheck size={14} />
-                        Mark Paid
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredInvoices.map((invoice) => {
+                  const pr = getPRById(invoice.prId);
+                  const product = getProductById(pr?.productId);
+                  return (
+                    <tr
+                      key={invoice.id}
+                      className="row-clickable"
+                      onClick={() => setSelectedItem({ invoice, pr, product })}
+                      title="Click to view details"
+                    >
+                      <td>{invoice.id}</td>
+                      <td>{invoice.poId}</td>
+                      <td>{invoice.prId}</td>
+                      <td>{invoice.grId}</td>
+                      <td>{formatCurrency(invoice.amount)}</td>
+                      <td>{formatDate(invoice.createdAt)}</td>
+                      <td><Badge status={invoice.status} /></td>
+                      <td>
+                        <button
+                          className="secondary-button small-button"
+                          disabled={invoice.status === 'Paid'}
+                          onClick={(e) => { e.stopPropagation(); handleMarkPaid(invoice.id); }}
+                          type="button"
+                        >
+                          <CheckCheck size={14} />
+                          Mark Paid
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </Card>
+
+      {selectedItem && (
+        <DetailModal
+          title={`Invoice — ${selectedItem.invoice.id}`}
+          onClose={() => setSelectedItem(null)}
+          fields={[
+            { label: 'Invoice ID', value: selectedItem.invoice.id },
+            { label: 'PO Reference', value: selectedItem.invoice.poId },
+            { label: 'PR Reference', value: selectedItem.invoice.prId },
+            { label: 'GR Reference', value: selectedItem.invoice.grId },
+            { label: 'Product', value: selectedItem.product?.name ?? '—' },
+            { label: 'Quantity', value: selectedItem.pr?.quantity ?? '—' },
+            { label: 'Amount', value: formatCurrency(selectedItem.invoice.amount) },
+            { label: 'Status', value: selectedItem.invoice.status },
+            { label: 'Created At', value: formatDate(selectedItem.invoice.createdAt) },
+            { label: 'Paid At', value: formatDate(selectedItem.invoice.paidAt) },
+          ]}
+        />
+      )}
     </div>
   );
 }

@@ -23,10 +23,21 @@ export default function ProductsPage() {
   function handleSubmit(event) {
     event.preventDefault();
 
+    if (!form.name.trim()) {
+      window.alert('Product name is required.');
+      return;
+    }
+
+    if (Number(form.price) <= 0) {
+      window.alert('Product price must be greater than zero.');
+      return;
+    }
+
     try {
       addProductRecord(form);
       setForm(EMPTY_FORM);
     } catch (error) {
+      console.error('Add product failed:', error);
       window.alert(error.message);
     }
   }

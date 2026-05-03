@@ -26,9 +26,15 @@ export function Card({ title, subtitle, action, children, footer }) {
   );
 }
 
-export function StatCard({ icon: Icon, label, value, helper, tone = 'primary' }) {
+export function StatCard({ icon: Icon, label, value, helper, tone = 'primary', onClick }) {
   return (
-    <article className={`stat-card tone-${tone}`}>
+    <article
+      className={`stat-card tone-${tone}${onClick ? ' stat-card-clickable' : ''}`}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => (e.key === 'Enter' || e.key === ' ') && onClick() : undefined}
+    >
       <div className="stat-topline">
         {Icon ? (
           <span className="stat-icon">
@@ -39,6 +45,7 @@ export function StatCard({ icon: Icon, label, value, helper, tone = 'primary' })
       </div>
       <strong className="stat-value">{value}</strong>
       {helper && <span className="stat-helper">{helper}</span>}
+      {onClick && <span className="stat-cta">Click to view details →</span>}
     </article>
   );
 }
@@ -64,5 +71,37 @@ export function EmptyState({ icon: Icon, title, description, action }) {
       <span>{description}</span>
       {action ? <div className="empty-state-action">{action}</div> : null}
     </div>
+  );
+}
+
+export function Modal({ title, onClose, children }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>{title}</h2>
+          <button className="modal-close" onClick={onClose} type="button" aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <div className="modal-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+export function DetailModal({ title, fields, onClose }) {
+  if (!fields) return null;
+  return (
+    <Modal title={title} onClose={onClose}>
+      <div className="detail-grid">
+        {fields.map(({ label, value }) => (
+          <div key={label} className="detail-field">
+            <label>{label}</label>
+            <span>{value ?? '—'}</span>
+          </div>
+        ))}
+      </div>
+    </Modal>
   );
 }

@@ -1,6 +1,6 @@
 import { Search, Sheet, Trash2, UserPlus } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { ActionHint, Card, EmptyState } from '../components/UI';
+import { ActionHint, Card, DetailModal, EmptyState } from '../components/UI';
 import { useProcurement } from '../context/ProcurementContext';
 import { exportEmployees } from '../utils/exportExcel';
 import { filterByText } from '../utils/formatters';
@@ -14,6 +14,7 @@ export default function EmployeesPage() {
   const { employees, addEmployeeRecord, deleteEmployeeRecord } = useProcurement();
   const [form, setForm] = useState(EMPTY_FORM);
   const [search, setSearch] = useState('');
+  const [selectedItem, setSelectedItem] = useState(null);
 
   const filteredEmployees = useMemo(
     () => filterByText(employees, search, (employee) => [employee.id, employee.name, employee.role]),
@@ -23,10 +24,21 @@ export default function EmployeesPage() {
   function handleSubmit(event) {
     event.preventDefault();
 
+    if (!form.name.trim()) {
+      window.alert('Employee name is required.');
+      return;
+    }
+
+    if (!form.role.trim()) {
+      window.alert('Employee role is required.');
+      return;
+    }
+
     try {
       addEmployeeRecord(form);
       setForm(EMPTY_FORM);
     } catch (error) {
+      console.error('Add employee failed:', error);
       window.alert(error.message);
     }
   }
@@ -131,7 +143,12 @@ export default function EmployeesPage() {
               </thead>
               <tbody>
                 {filteredEmployees.map((employee) => (
-                  <tr key={employee.id}>
+                  <tr
+                    key={employee.id}
+                    className="row-clickable"
+                    onClick={() => setSelectedItem(employee)}
+                    title="Click to view details"
+                  >
                     <td>{employee.id}</td>
                     <td>{employee.name}</td>
                     <td>{employee.role}</td>
@@ -139,7 +156,7 @@ export default function EmployeesPage() {
                       <div className="table-actions">
                         <button
                           className="danger-button small-button"
-                          onClick={() => handleDelete(employee)}
+                          onClick={(e) => { e.stopPropagation(); handleDelete(employee); }}
                           type="button"
                         >
                           <Trash2 size={14} />
@@ -154,6 +171,18 @@ export default function EmployeesPage() {
           </div>
         )}
       </Card>
+
+      {selectedItem && (
+        <DetailModal
+          title={`Employee — ${selectedItem.name}`}
+          onClose={() => setSelectedItem(null)}
+          fields={[
+            { label: 'Employee ID', value: selectedItem.id },
+            { label: 'Full Name', value: selectedItem.name },
+            { label: 'Role', value: selectedItem.role },
+          ]}
+        />
+      )}
     </div>
   );
 }
