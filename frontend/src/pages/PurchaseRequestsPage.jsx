@@ -1,6 +1,6 @@
-import { BadgeCheck, ClipboardPlus, Search, Sheet } from 'lucide-react';
+import { BadgeCheck, ClipboardPlus, Edit2, Search, Sheet, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { ActionHint, Badge, Card, DetailModal, EmptyState } from '../components/UI';
+import { ActionHint, Badge, Card, ConfirmModal, DetailModal, EditModal, EmptyState } from '../components/UI';
 import { useProcurement } from '../context/ProcurementContext';
 import { exportPurchaseRequests } from '../utils/exportExcel';
 import { filterByText, formatCurrency, formatDate } from '../utils/formatters';
@@ -17,6 +17,8 @@ export default function PurchaseRequestsPage() {
     employees,
     purchaseRequests,
     createPRRecord,
+    updatePRRecord,
+    deletePRRecordCascade,
     approvePRRecord,
     getProductById,
     getEmployeeById,
@@ -26,6 +28,9 @@ export default function PurchaseRequestsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedItem, setSelectedItem] = useState(null);
+  const [modal, setModal] = useState(null); // 'edit' | 'confirm-delete'
+  const [target, setTarget] = useState(null);
+  const [editForm, setEditForm] = useState({ productId: '', quantity: 1, requestedById: '' });
 
   const filteredRequests = useMemo(() => {
     const baseList = filterByText(
@@ -79,6 +84,45 @@ export default function PurchaseRequestsPage() {
     } catch (error) {
       window.alert(error.message);
     }
+  }
+
+  function handleDeleteClick(pr) {
+    setTarget(pr);
+    setModal('confirm-delete');
+  }
+
+  function handleDeleteConfirm() {
+    if (!target) return;
+    try {
+      deletePRRecordCascade(target.id);
+      setModal(null);
+      setTarget(null);
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
+  function handleEditClick(pr) {
+    setTarget(pr);
+    setEditForm({ productId: pr.productId, quantity: pr.quantity, requestedById: pr.requestedById });
+    setModal('edit');
+  }
+
+  function handleEditSave() {
+    if (!target) return;
+    try {
+      updatePRRecord(target.id, editForm);
+      setModal(null);
+      setTarget(null);
+    } catch (error) {
+      console.error('Update PR failed:', error);
+      window.alert(error.message);
+    }
+  }
+
+  function closeModal() {
+    setModal(null);
+    setTarget(null);
   }
 
   return (
@@ -221,17 +265,29 @@ export default function PurchaseRequestsPage() {
                       <td>{formatDate(purchaseRequest.createdAt)}</td>
                       <td><Badge status={purchaseRequest.status} /></td>
                       <td>
-                        <button
-                          className="secondary-button small-button"
-                          disabled={purchaseRequest.status !== 'Pending'}
-                          onClick={(e) => { e.stopPropagation(); handleApprove(purchaseRequest.id); }}
-                          type="button"
-                        >
-                          <BadgeCheck size={14} />
-                          Approve
-                        </button>
-                        <div className="button-description">
-                          Moves the PR into Approved status so a PO can be created.
+                        <div className="table-actions">
+                          <button
+                            className="secondary-button small-button"
+                            onClick={(e) => { e.stopPropagation(); handleEditClick(purchaseRequest); }}
+                            type="button"
+                          >
+                            <Edit2 size={14} /> Edit
+                          </button>
+                          <button
+                            className="secondary-button small-button"
+                            disabled={purchaseRequest.status !== 'Pending'}
+                            onClick={(e) => { e.stopPropagation(); handleApprove(purchaseRequest.id); }}
+                            type="button"
+                          >
+                            <BadgeCheck size={14} /> Approve
+                          </button>
+                          <button
+                            className="danger-button small-button"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteClick(purchaseRequest); }}
+                            type="button"
+                          >
+                            <Trash2 size={14} /> Delete
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -259,6 +315,60 @@ export default function PurchaseRequestsPage() {
             { label: 'Created At', value: formatDate(selectedItem.pr.createdAt) },
             { label: 'Approved At', value: formatDate(selectedItem.pr.approvedAt) },
           ]}
+        />
+      )}
+
+      {modal === 'edit' && target && (
+        <EditModal
+          title={`Edit Purchase Request — ${target.id}`}
+          fields={[
+            {
+              name: 'productId',
+              label: 'Product',
+              type: 'select',
+              value: editForm.productId,
+              onChange: (e) => setEditForm((c) => ({ ...c, productId: e.target.value })),
+              required: true,
+              options: [
+                { value: '', label: 'Select a product' },
+                ...products.map((p) => ({ value: p.id, label: p.name })),
+              ],
+            },
+            {
+              name: 'quantity',
+              label: 'Quantity',
+              type: 'number',
+              value: editForm.quantity,
+              onChange: (e) => setEditForm((c) => ({ ...c, quantity: e.target.value })),
+              required: true,
+              min: '1',
+            },
+            {
+              name: 'requestedById',
+              label: 'Requested By',
+              type: 'select',
+              value: editForm.requestedById,
+              onChange: (e) => setEditForm((c) => ({ ...c, requestedById: e.target.value })),
+              required: true,
+              options: [
+                { value: '', label: 'Select an employee' },
+                ...employees.map((emp) => ({ value: emp.id, label: `${emp.name} - ${emp.role}` })),
+              ],
+            },
+          ]}
+          onSave={handleEditSave}
+          onClose={closeModal}
+        />
+      )}
+
+      {modal === 'confirm-delete' && target && (
+        <ConfirmModal
+          title="Delete Purchase Request (Cascade)"
+          message={`Delete PR "${target.id}" and ALL related records?\n\nThis will also delete:\n- Related Purchase Order (if exists)\n- Related Goods Receipt (if exists)\n- Related Invoice (if exists)\n\nThis action cannot be undone.`}
+          onConfirm={handleDeleteConfirm}
+          onCancel={closeModal}
+          confirmLabel="Delete All"
+          danger
         />
       )}
     </div>

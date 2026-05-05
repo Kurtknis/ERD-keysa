@@ -46,12 +46,32 @@ export function deleteProduct(state, productId) {
     'Product not found.',
   );
 
-  if (state.purchaseRequests.some((item) => item.productId === productId)) {
-    throw new Error('Cannot delete a product that is already used in a purchase request.');
+  const nextState = cloneState(state);
+  nextState.products = nextState.products.filter((item) => item.id !== productId);
+  return nextState;
+}
+
+export function updateProduct(state, productId, payload) {
+  const product = requireEntity(
+    state.products.find((item) => item.id === productId),
+    'Product not found.',
+  );
+
+  if (!payload.name.trim()) {
+    throw new Error('Product name is required.');
+  }
+
+  if (Number(payload.price) <= 0) {
+    throw new Error('Product price must be greater than zero.');
   }
 
   const nextState = cloneState(state);
-  nextState.products = nextState.products.filter((item) => item.id !== productId);
+  nextState.products = nextState.products.map((item) =>
+    item.id === productId
+      ? { ...item, name: payload.name.trim(), price: Number(payload.price) }
+      : item,
+  );
+
   return nextState;
 }
 
@@ -81,12 +101,32 @@ export function deleteEmployee(state, employeeId) {
     'Employee not found.',
   );
 
-  if (state.purchaseRequests.some((item) => item.requestedById === employeeId)) {
-    throw new Error('Cannot delete an employee who is already linked to a purchase request.');
+  const nextState = cloneState(state);
+  nextState.employees = nextState.employees.filter((item) => item.id !== employeeId);
+  return nextState;
+}
+
+export function updateEmployee(state, employeeId, payload) {
+  const employee = requireEntity(
+    state.employees.find((item) => item.id === employeeId),
+    'Employee not found.',
+  );
+
+  if (!payload.name.trim()) {
+    throw new Error('Employee name is required.');
+  }
+
+  if (!payload.role.trim()) {
+    throw new Error('Employee role is required.');
   }
 
   const nextState = cloneState(state);
-  nextState.employees = nextState.employees.filter((item) => item.id !== employeeId);
+  nextState.employees = nextState.employees.map((item) =>
+    item.id === employeeId
+      ? { ...item, name: payload.name.trim(), role: payload.role.trim() }
+      : item,
+  );
+
   return nextState;
 }
 
@@ -273,6 +313,137 @@ export function markInvoicePaid(state, invoiceId) {
   nextState.invoices = nextState.invoices.map((item) =>
     item.id === invoiceId
       ? { ...item, status: 'Paid', paidAt: new Date().toISOString() }
+      : item,
+  );
+
+  return nextState;
+}
+
+// CASCADE DELETE FUNCTIONS
+export function deletePurchaseRequestCascade(state, prId) {
+  const pr = requireEntity(
+    state.purchaseRequests.find((item) => item.id === prId),
+    'Purchase request not found.',
+  );
+
+  const nextState = cloneState(state);
+
+  // Find related PO
+  const relatedPO = nextState.purchaseOrders.find((po) => po.prId === prId);
+  
+  if (relatedPO) {
+    // Find related GR
+    const relatedGR = nextState.goodsReceipts.find((gr) => gr.poId === relatedPO.id);
+    
+    // Find related Invoice
+    const relatedInvoice = nextState.invoices.find((inv) => inv.poId === relatedPO.id);
+    
+    // Delete in reverse order: Invoice -> GR -> PO -> PR
+    if (relatedInvoice) {
+      nextState.invoices = nextState.invoices.filter((item) => item.id !== relatedInvoice.id);
+    }
+    
+    if (relatedGR) {
+      nextState.goodsReceipts = nextState.goodsReceipts.filter((item) => item.id !== relatedGR.id);
+    }
+    
+    nextState.purchaseOrders = nextState.purchaseOrders.filter((item) => item.id !== relatedPO.id);
+  }
+
+  nextState.purchaseRequests = nextState.purchaseRequests.filter((item) => item.id !== prId);
+  
+  return nextState;
+}
+
+export function deletePurchaseOrderCascade(state, poId) {
+  const po = requireEntity(
+    state.purchaseOrders.find((item) => item.id === poId),
+    'Purchase order not found.',
+  );
+
+  const nextState = cloneState(state);
+
+  // Find related GR and Invoice
+  const relatedGR = nextState.goodsReceipts.find((gr) => gr.poId === poId);
+  const relatedInvoice = nextState.invoices.find((inv) => inv.poId === poId);
+
+  // Delete in reverse order: Invoice -> GR -> PO
+  if (relatedInvoice) {
+    nextState.invoices = nextState.invoices.filter((item) => item.id !== relatedInvoice.id);
+  }
+
+  if (relatedGR) {
+    nextState.goodsReceipts = nextState.goodsReceipts.filter((item) => item.id !== relatedGR.id);
+  }
+
+  nextState.purchaseOrders = nextState.purchaseOrders.filter((item) => item.id !== poId);
+
+  return nextState;
+}
+
+export function deleteGoodsReceiptCascade(state, grId) {
+  const gr = requireEntity(
+    state.goodsReceipts.find((item) => item.id === grId),
+    'Goods receipt not found.',
+  );
+
+  const nextState = cloneState(state);
+
+  // Find related Invoice
+  const relatedInvoice = nextState.invoices.find((inv) => inv.grId === grId);
+
+  // Delete Invoice first if exists
+  if (relatedInvoice) {
+    nextState.invoices = nextState.invoices.filter((item) => item.id !== relatedInvoice.id);
+  }
+
+  nextState.goodsReceipts = nextState.goodsReceipts.filter((item) => item.id !== grId);
+
+  return nextState;
+}
+
+export function deleteInvoice(state, invoiceId) {
+  const invoice = requireEntity(
+    state.invoices.find((item) => item.id === invoiceId),
+    'Invoice not found.',
+  );
+
+  const nextState = cloneState(state);
+  nextState.invoices = nextState.invoices.filter((item) => item.id !== invoiceId);
+
+  return nextState;
+}
+
+// UPDATE FUNCTIONS FOR PR
+export function updatePurchaseRequest(state, prId, payload) {
+  const pr = requireEntity(
+    state.purchaseRequests.find((item) => item.id === prId),
+    'Purchase request not found.',
+  );
+
+  const product = requireEntity(
+    state.products.find((item) => item.id === payload.productId),
+    'Please select a valid product.',
+  );
+
+  requireEntity(
+    state.employees.find((item) => item.id === payload.requestedById),
+    'Please select a valid employee.',
+  );
+
+  if (Number(payload.quantity) <= 0) {
+    throw new Error('Quantity must be greater than zero.');
+  }
+
+  const nextState = cloneState(state);
+  nextState.purchaseRequests = nextState.purchaseRequests.map((item) =>
+    item.id === prId
+      ? {
+          ...item,
+          productId: payload.productId,
+          quantity: Number(payload.quantity),
+          requestedById: payload.requestedById,
+        }
       : item,
   );
 

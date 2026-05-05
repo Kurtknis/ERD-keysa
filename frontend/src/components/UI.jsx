@@ -105,3 +105,66 @@ export function DetailModal({ title, fields, onClose }) {
     </Modal>
   );
 }
+
+export function EditModal({ title, fields, onSave, onClose, submitLabel = 'Save Changes' }) {
+  return (
+    <Modal title={title} onClose={onClose}>
+      <form
+        className="form-grid"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSave();
+        }}
+      >
+        {fields.map((field) => (
+          <label key={field.name}>
+            {field.label}
+            {field.type === 'select' ? (
+              <select value={field.value} onChange={field.onChange} required={field.required}>
+                {field.options.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type={field.type || 'text'}
+                value={field.value}
+                onChange={field.onChange}
+                placeholder={field.placeholder}
+                required={field.required}
+                min={field.min}
+                step={field.step}
+              />
+            )}
+          </label>
+        ))}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button type="button" className="secondary-button" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="primary-button">
+            {submitLabel}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+export function ConfirmModal({ title, message, onConfirm, onCancel, confirmLabel = 'Confirm', danger = false }) {
+  return (
+    <Modal title={title} onClose={onCancel}>
+      <p style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 20, opacity: 0.9 }}>{message}</p>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button type="button" className="secondary-button" onClick={onCancel}>
+          Cancel
+        </button>
+        <button type="button" className={danger ? 'danger-button' : 'primary-button'} onClick={onConfirm}>
+          {confirmLabel}
+        </button>
+      </div>
+    </Modal>
+  );
+}

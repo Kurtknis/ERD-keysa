@@ -1,6 +1,6 @@
-import { Search, Sheet, Trash2, UserPlus } from 'lucide-react';
+import { Edit2, Search, Sheet, Trash2, UserPlus } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { ActionHint, Card, DetailModal, EmptyState } from '../components/UI';
+import { ActionHint, Card, ConfirmModal, DetailModal, EditModal, EmptyState } from '../components/UI';
 import { useProcurement } from '../context/ProcurementContext';
 import { exportEmployees } from '../utils/exportExcel';
 import { filterByText } from '../utils/formatters';
@@ -11,10 +11,13 @@ const EMPTY_FORM = {
 };
 
 export default function EmployeesPage() {
-  const { employees, addEmployeeRecord, deleteEmployeeRecord } = useProcurement();
+  const { employees, addEmployeeRecord, updateEmployeeRecord, deleteEmployeeRecord } = useProcurement();
   const [form, setForm] = useState(EMPTY_FORM);
   const [search, setSearch] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
+  const [modal, setModal] = useState(null); // 'edit' | 'confirm-delete'
+  const [target, setTarget] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '', role: '' });
 
   const filteredEmployees = useMemo(
     () => filterByText(employees, search, (employee) => [employee.id, employee.name, employee.role]),
@@ -44,19 +47,42 @@ export default function EmployeesPage() {
   }
 
   function handleDelete(employee) {
-    const confirmed = window.confirm(
-      `Delete "${employee.name}"?\n\nEmployees linked to purchase requests cannot be deleted.`,
-    );
+    setTarget(employee);
+    setModal('confirm-delete');
+  }
 
-    if (!confirmed) {
-      return;
-    }
-
+  function handleDeleteConfirm() {
+    if (!target) return;
     try {
-      deleteEmployeeRecord(employee.id);
+      deleteEmployeeRecord(target.id);
+      setModal(null);
+      setTarget(null);
     } catch (error) {
       window.alert(error.message);
     }
+  }
+
+  function handleEditClick(employee) {
+    setTarget(employee);
+    setEditForm({ name: employee.name, role: employee.role });
+    setModal('edit');
+  }
+
+  function handleEditSave() {
+    if (!target) return;
+    try {
+      updateEmployeeRecord(target.id, editForm);
+      setModal(null);
+      setTarget(null);
+    } catch (error) {
+      console.error('Update employee failed:', error);
+      window.alert(error.message);
+    }
+  }
+
+  function closeModal() {
+    setModal(null);
+    setTarget(null);
   }
 
   return (
@@ -155,12 +181,18 @@ export default function EmployeesPage() {
                     <td>
                       <div className="table-actions">
                         <button
+                          className="secondary-button small-button"
+                          onClick={(e) => { e.stopPropagation(); handleEditClick(employee); }}
+                          type="button"
+                        >
+                          <Edit2 size={14} /> Edit
+                        </button>
+                        <button
                           className="danger-button small-button"
                           onClick={(e) => { e.stopPropagation(); handleDelete(employee); }}
                           type="button"
                         >
-                          <Trash2 size={14} />
-                          Delete
+                          <Trash2 size={14} /> Delete
                         </button>
                       </div>
                     </td>
@@ -181,6 +213,41 @@ export default function EmployeesPage() {
             { label: 'Full Name', value: selectedItem.name },
             { label: 'Role', value: selectedItem.role },
           ]}
+        />
+      )}
+
+      {modal === 'edit' && target && (
+        <EditModal
+          title={`Edit Employee — ${target.name}`}
+          fields={[
+            {
+              name: 'name',
+              label: 'Employee Name',
+              value: editForm.name,
+              onChange: (e) => setEditForm((c) => ({ ...c, name: e.target.value })),
+              required: true,
+            },
+            {
+              name: 'role',
+              label: 'Role',
+              value: editForm.role,
+              onChange: (e) => setEditForm((c) => ({ ...c, role: e.target.value })),
+              required: true,
+            },
+          ]}
+          onSave={handleEditSave}
+          onClose={closeModal}
+        />
+      )}
+
+      {modal === 'confirm-delete' && target && (
+        <ConfirmModal
+          title="Delete Employee"
+          message={`Delete "${target.name}"?\n\nEmployees linked to purchase requests cannot be deleted.`}
+          onConfirm={handleDeleteConfirm}
+          onCancel={closeModal}
+          confirmLabel="Delete"
+          danger
         />
       )}
     </div>

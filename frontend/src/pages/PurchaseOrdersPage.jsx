@@ -1,6 +1,6 @@
-import { PlusCircle, Search, ShoppingCart } from 'lucide-react';
+import { PlusCircle, Search, ShoppingCart, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { ActionHint, Badge, Card, DetailModal, EmptyState } from '../components/UI';
+import { ActionHint, Badge, Card, ConfirmModal, DetailModal, EmptyState } from '../components/UI';
 import { useProcurement } from '../context/ProcurementContext';
 import { filterByText, formatDate } from '../utils/formatters';
 
@@ -9,6 +9,7 @@ export default function PurchaseOrdersPage() {
     purchaseRequests,
     purchaseOrders,
     createPORecord,
+    deletePORecordCascade,
     getProductById,
     getEmployeeById,
     getPRById,
@@ -16,6 +17,8 @@ export default function PurchaseOrdersPage() {
 
   const [search, setSearch] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
+  const [modal, setModal] = useState(null);
+  const [target, setTarget] = useState(null);
 
   const filteredOrders = useMemo(
     () => filterByText(purchaseOrders, search, (purchaseOrder) => [purchaseOrder.id, purchaseOrder.prId, purchaseOrder.status]),
@@ -46,6 +49,27 @@ export default function PurchaseOrdersPage() {
       console.error('Create PO failed:', error);
       window.alert(error.message);
     }
+  }
+
+  function handleDeleteClick(po) {
+    setTarget(po);
+    setModal('confirm-delete');
+  }
+
+  function handleDeleteConfirm() {
+    if (!target) return;
+    try {
+      deletePORecordCascade(target.id);
+      setModal(null);
+      setTarget(null);
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
+  function closeModal() {
+    setModal(null);
+    setTarget(null);
   }
 
   return (
@@ -129,6 +153,7 @@ export default function PurchaseOrdersPage() {
                   <th>PR Reference</th>
                   <th>Created</th>
                   <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -147,6 +172,15 @@ export default function PurchaseOrdersPage() {
                       <td>{purchaseOrder.prId}</td>
                       <td>{formatDate(purchaseOrder.createdAt)}</td>
                       <td><Badge status={purchaseOrder.status} /></td>
+                      <td>
+                        <button
+                          className="danger-button small-button"
+                          onClick={(e) => { e.stopPropagation(); handleDeleteClick(purchaseOrder); }}
+                          type="button"
+                        >
+                          <Trash2 size={14} /> Delete
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -170,6 +204,17 @@ export default function PurchaseOrdersPage() {
             { label: 'Created At', value: formatDate(selectedItem.po.createdAt) },
             { label: 'Status', value: selectedItem.po.status },
           ]}
+        />
+      )}
+
+      {modal === 'confirm-delete' && target && (
+        <ConfirmModal
+          title="Delete Purchase Order (Cascade)"
+          message={`Delete PO "${target.id}" and ALL related records?\n\nThis will also delete:\n- Related Goods Receipt (if exists)\n- Related Invoice (if exists)\n\nThis action cannot be undone.`}
+          onConfirm={handleDeleteConfirm}
+          onCancel={closeModal}
+          confirmLabel="Delete All"
+          danger
         />
       )}
     </div>

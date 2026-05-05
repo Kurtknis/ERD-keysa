@@ -1,6 +1,6 @@
-import { BadgeDollarSign, CheckCheck, PlusCircle, Search } from 'lucide-react';
+import { BadgeDollarSign, CheckCheck, PlusCircle, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { ActionHint, Badge, Card, DetailModal, EmptyState } from '../components/UI';
+import { ActionHint, Badge, Card, ConfirmModal, DetailModal, EmptyState } from '../components/UI';
 import { useProcurement } from '../context/ProcurementContext';
 import { filterByText, formatCurrency, formatDate } from '../utils/formatters';
 
@@ -10,6 +10,7 @@ export default function InvoicesPage() {
     goodsReceipts,
     invoices,
     createInvoiceRecord,
+    deleteInvoiceRecord,
     markInvoicePaidRecord,
     getPRById,
     getProductById,
@@ -17,6 +18,8 @@ export default function InvoicesPage() {
 
   const [search, setSearch] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
+  const [modal, setModal] = useState(null);
+  const [target, setTarget] = useState(null);
 
   const filteredInvoices = useMemo(
     () =>
@@ -68,6 +71,27 @@ export default function InvoicesPage() {
       console.error('Mark invoice paid failed:', error);
       window.alert(error.message);
     }
+  }
+
+  function handleDeleteClick(invoice) {
+    setTarget(invoice);
+    setModal('confirm-delete');
+  }
+
+  function handleDeleteConfirm() {
+    if (!target) return;
+    try {
+      deleteInvoiceRecord(target.id);
+      setModal(null);
+      setTarget(null);
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
+  function closeModal() {
+    setModal(null);
+    setTarget(null);
   }
 
   return (
@@ -150,7 +174,7 @@ export default function InvoicesPage() {
                   <th>Amount</th>
                   <th>Created</th>
                   <th>Status</th>
-                  <th>Action</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -172,15 +196,23 @@ export default function InvoicesPage() {
                       <td>{formatDate(invoice.createdAt)}</td>
                       <td><Badge status={invoice.status} /></td>
                       <td>
-                        <button
-                          className="secondary-button small-button"
-                          disabled={invoice.status === 'Paid'}
-                          onClick={(e) => { e.stopPropagation(); handleMarkPaid(invoice.id); }}
-                          type="button"
-                        >
-                          <CheckCheck size={14} />
-                          Mark Paid
-                        </button>
+                        <div className="table-actions">
+                          <button
+                            className="secondary-button small-button"
+                            disabled={invoice.status === 'Paid'}
+                            onClick={(e) => { e.stopPropagation(); handleMarkPaid(invoice.id); }}
+                            type="button"
+                          >
+                            <CheckCheck size={14} /> Mark Paid
+                          </button>
+                          <button
+                            className="danger-button small-button"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteClick(invoice); }}
+                            type="button"
+                          >
+                            <Trash2 size={14} /> Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -207,6 +239,17 @@ export default function InvoicesPage() {
             { label: 'Created At', value: formatDate(selectedItem.invoice.createdAt) },
             { label: 'Paid At', value: formatDate(selectedItem.invoice.paidAt) },
           ]}
+        />
+      )}
+
+      {modal === 'confirm-delete' && target && (
+        <ConfirmModal
+          title="Delete Invoice"
+          message={`Delete invoice "${target.id}"?\n\nThis action cannot be undone.`}
+          onConfirm={handleDeleteConfirm}
+          onCancel={closeModal}
+          confirmLabel="Delete"
+          danger
         />
       )}
     </div>

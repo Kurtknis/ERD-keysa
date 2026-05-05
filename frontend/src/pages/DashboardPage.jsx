@@ -3,6 +3,7 @@ import {
   CircleDollarSign,
   ClipboardList,
   CreditCard,
+  FileSpreadsheet,
   PackageCheck,
   ShoppingCart,
   TriangleAlert,
@@ -12,6 +13,7 @@ import { useState } from 'react';
 import { useMemo } from 'react';
 import { Badge, Card, Modal, StatCard } from '../components/UI';
 import { useProcurement } from '../context/ProcurementContext';
+import { exportAllData } from '../utils/exportExcel';
 import { formatCurrency, formatDate } from '../utils/formatters';
 
 const HOW_TO_STEPS = [
@@ -83,8 +85,49 @@ export default function DashboardPage() {
     setActiveModal(null);
   }
 
+  function handleExportAll() {
+    exportAllData(
+      {
+        products,
+        employees,
+        purchaseRequests,
+        purchaseOrders,
+        goodsReceipts,
+        invoices,
+      },
+      {
+        getProductById,
+        getEmployeeById,
+        getPRById,
+      },
+    );
+  }
+
   return (
     <div className="page-stack">
+      {/* Export All Button - Prominent placement at top */}
+      <Card
+        title="Export Complete Procurement Data"
+        subtitle="Download all data (Products, Employees, PRs, POs, GRs, Invoices) in one Excel file with multiple sheets."
+        action={
+          <button className="primary-button" onClick={handleExportAll} type="button">
+            <FileSpreadsheet size={16} /> Export All Data
+          </button>
+        }
+      >
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 13, opacity: 0.85 }}>
+          <span> {products.length} Products</span>
+          <span> {employees.length} Employees</span>
+          <span> {purchaseRequests.length} PRs</span>
+          <span> {purchaseOrders.length} POs</span>
+          <span> {goodsReceipts.length} GRs</span>
+          <span> {invoices.length} Invoices</span>
+          <span style={{ marginLeft: 'auto', fontWeight: 600 }}>
+            Total: {products.length + employees.length + purchaseRequests.length + purchaseOrders.length + goodsReceipts.length + invoices.length} records
+          </span>
+        </div>
+      </Card>
+
       {pendingPRCount > 0 ? (
         <div className="page-alert warning">
           <div className="page-alert-icon">

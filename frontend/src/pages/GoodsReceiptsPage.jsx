@@ -1,6 +1,6 @@
-import { CheckCheck, PackageCheck, PlusCircle, Search } from 'lucide-react';
+import { CheckCheck, PackageCheck, PlusCircle, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { ActionHint, Badge, Card, DetailModal, EmptyState } from '../components/UI';
+import { ActionHint, Badge, Card, ConfirmModal, DetailModal, EmptyState } from '../components/UI';
 import { useProcurement } from '../context/ProcurementContext';
 import { filterByText, formatDate } from '../utils/formatters';
 
@@ -9,6 +9,7 @@ export default function GoodsReceiptsPage() {
     purchaseOrders,
     goodsReceipts,
     createGRRecord,
+    deleteGRRecordCascade,
     markGRReceivedRecord,
     getPRById,
     getProductById,
@@ -16,6 +17,8 @@ export default function GoodsReceiptsPage() {
 
   const [search, setSearch] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
+  const [modal, setModal] = useState(null);
+  const [target, setTarget] = useState(null);
 
   const filteredReceipts = useMemo(
     () => filterByText(goodsReceipts, search, (goodsReceipt) => [goodsReceipt.id, goodsReceipt.poId, goodsReceipt.status]),
@@ -48,6 +51,27 @@ export default function GoodsReceiptsPage() {
       console.error('Mark GR received failed:', error);
       window.alert(error.message);
     }
+  }
+
+  function handleDeleteClick(gr) {
+    setTarget(gr);
+    setModal('confirm-delete');
+  }
+
+  function handleDeleteConfirm() {
+    if (!target) return;
+    try {
+      deleteGRRecordCascade(target.id);
+      setModal(null);
+      setTarget(null);
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
+  function closeModal() {
+    setModal(null);
+    setTarget(null);
   }
 
   return (
@@ -128,7 +152,7 @@ export default function GoodsReceiptsPage() {
                   <th>Created</th>
                   <th>Received</th>
                   <th>Status</th>
-                  <th>Action</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -149,15 +173,23 @@ export default function GoodsReceiptsPage() {
                       <td>{formatDate(goodsReceipt.receivedAt)}</td>
                       <td><Badge status={goodsReceipt.status} /></td>
                       <td>
-                        <button
-                          className="secondary-button small-button"
-                          disabled={goodsReceipt.status === 'Received'}
-                          onClick={(e) => { e.stopPropagation(); handleMarkReceived(goodsReceipt.id); }}
-                          type="button"
-                        >
-                          <CheckCheck size={14} />
-                          Mark Received
-                        </button>
+                        <div className="table-actions">
+                          <button
+                            className="secondary-button small-button"
+                            disabled={goodsReceipt.status === 'Received'}
+                            onClick={(e) => { e.stopPropagation(); handleMarkReceived(goodsReceipt.id); }}
+                            type="button"
+                          >
+                            <CheckCheck size={14} /> Mark Received
+                          </button>
+                          <button
+                            className="danger-button small-button"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteClick(goodsReceipt); }}
+                            type="button"
+                          >
+                            <Trash2 size={14} /> Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -182,6 +214,17 @@ export default function GoodsReceiptsPage() {
             { label: 'Created At', value: formatDate(selectedItem.gr.createdAt) },
             { label: 'Received At', value: formatDate(selectedItem.gr.receivedAt) },
           ]}
+        />
+      )}
+
+      {modal === 'confirm-delete' && target && (
+        <ConfirmModal
+          title="Delete Goods Receipt (Cascade)"
+          message={`Delete GR "${target.id}" and ALL related records?\n\nThis will also delete:\n- Related Invoice (if exists)\n\nThis action cannot be undone.`}
+          onConfirm={handleDeleteConfirm}
+          onCancel={closeModal}
+          confirmLabel="Delete All"
+          danger
         />
       )}
     </div>
